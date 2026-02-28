@@ -1,0 +1,113 @@
+---
+description: Spring Boot service standards — Java 25, Javadoc, records for DTOs, project structure
+alwaysApply: true
+---
+
+# Spring Boot Service — Reglas del proyecto
+
+## Lenguaje y nomenclatura
+
+- **Todo el código en inglés**: nombres de clases, métodos, atributos, variables, parámetros y comentarios.
+- **Clases**: PascalCase (ej. `ReservationService`, `UserController`).
+- **Métodos y variables**: camelCase (ej. `findById`, `createdAt`).
+- **Constantes**: UPPER_SNAKE_CASE (ej. `MAX_PAGE_SIZE`).
+- **Paquetes**: minúsculas (ej. `com.devsenior.fBeltran.reservation.service`).
+
+## Java 25 y estilo
+
+- Usar **Java 25** (features del lenguaje y APIs estándar actuales).
+- Preferir **`var`** cuando el tipo sea obvio por el contexto.
+- Usar **`switch` expressions** y **pattern matching** cuando simplifiquen el código.
+- Usar **`sealed` classes/interfaces** cuando el dominio sea cerrado.
+- Preferir **`String.formatted()`** o **`STR."..."`** (template strings) para formateo.
+- Usar **`Optional`** correctamente; evitar `Optional.get()` sin comprobar `isPresent()`.
+- Usar **`Records`** para DTOs, request/response y value objects inmutables.
+
+## DTOs con Java Records
+
+- Todos los DTOs (request/response, payloads de API) se definen como **Java records**.
+- Incluir validaciones con Bean Validation (`@NotNull`, `@Size`, `@Valid`, etc.) en los componentes del record.
+- Documentar el record y sus componentes con Javadoc cuando sea un contrato público (API).
+
+```java
+/**
+ * Request body for creating a reservation.
+ *
+ * @param resourceId identifier of the resource to reserve
+ * @param startTime  start of the reservation window
+ * @param endTime    end of the reservation window
+ */
+public record CreateReservationRequest(
+    @NotNull UUID resourceId,
+    @NotNull @FutureOrPresent Instant startTime,
+    @NotNull @Future Instant endTime
+) {}
+```
+
+## Javadoc en métodos públicos
+
+- **Todo método público** (clases, interfaces, controllers, services, repositories custom) debe tener Javadoc actualizado.
+- Incluir: descripción breve, `@param` por cada parámetro, `@return` cuando aplique, `@throws` si lanza excepciones documentadas.
+
+```java
+/**
+ * Finds a reservation by its unique identifier.
+ *
+ * @param id the reservation ID (must not be null)
+ * @return the reservation if found
+ * @throws ResourceNotFoundException if no reservation exists for the given id
+ */
+public ReservationDTO findById(UUID id) {
+    // ...
+}
+```
+
+## Estructura del proyecto
+
+Respetar esta estructura bajo `src/main/java/com/devsenior/fBeltran/reservation/`:
+
+```
+src/main/java/com/devsenior/fBeltran/reservation/
+├── BackendReservasApplication.java
+├── config/              # Configuración (Web, Security, Jackson, etc.)
+├── controller/          # REST controllers (@RestController)
+├── dto/                 # Records: request/response, DTOs de API
+│   ├── request/         # DTOs de entrada (crear/actualizar)
+│   └── response/        # DTOs de salida
+├── entity/              # Entidades JPA (@Entity)
+├── repository/          # Interfaces JpaRepository / custom
+├── service/             # Lógica de negocio (@Service)
+│   └── impl/            # Implementaciones (opcional si se usa interfaz)
+├── exception/           # Excepciones y @ControllerAdvice
+└── mapper/              # Mapeo Entity <-> DTO (MapStruct o manual)
+```
+
+- **Controllers**: delgados; validación de entrada, delegación al service, mapeo a DTOs de respuesta.
+- **Services**: contienen la lógica de negocio; transacciones con `@Transactional` cuando corresponda.
+- **Repositories**: solo acceso a datos; nombres claros (`findBy...`, `existsBy...`).
+- **Entities**: modelo de persistencia; evitar lógica de negocio compleja; relaciones bien definidas.
+
+## Spring Boot y buenas prácticas
+
+- Usar **constructor injection** (campos `final` cuando sea posible); evitar `@Autowired` en campos.
+- Controllers: usar **`@Valid`** en request bodies y validar parámetros de path/query cuando sea necesario.
+- Respuestas HTTP coherentes: DTOs para 200, excepciones mapeadas a 4xx/5xx en el `@ControllerAdvice`.
+- No exponer entidades JPA directamente en la API; siempre usar DTOs (records).
+- Configuración sensible en **`application.properties`/`application.yml`** o variables de entorno; no en código.
+- Nombres de endpoints REST: sustantivos en plural, HTTP verbs correctos (GET, POST, PUT, PATCH, DELETE).
+
+## Ejemplo de método público documentado
+
+```java
+/**
+ * Creates a new reservation for the given resource and time range.
+ *
+ * @param request the creation payload (validated)
+ * @return the created reservation with generated ID and timestamps
+ * @throws ConflictException if the slot overlaps with an existing reservation
+ */
+@Transactional
+public ReservationResponse create(CreateReservationRequest request) {
+    // ...
+}
+```
